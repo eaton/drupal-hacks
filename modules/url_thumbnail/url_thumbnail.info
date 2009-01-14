@@ -1,0 +1,4 @@
+; $Id$
+name = URL Thumbnail
+description = Provides thumbnail formatters for Views URL fields and CCK Link fields using WebSnapr.
+core = 6.x

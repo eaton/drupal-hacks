@@ -1,0 +1,48 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Handles integration of templates written in lolcode with the Drupal theme system.
+ */
+
+function loltemplate_init($template) {
+  require_once('lolparser.inc');
+  $file = dirname($template->filename) .'/lol.php';
+  if (file_exists($file)) {
+    include_once "./$file";
+  }
+}
+
+/**
+ * Implementation of hook_theme to tell Drupal what templates the engine
+ * and the current theme use. The $existing argument will contain hooks
+ * pre-defined by Drupal so that we can use that information if
+ * we need to.
+ */
+function loltemplate_theme($existing, $type, $theme, $path) {
+  $templates = drupal_find_theme_functions($existing, array('loltemplate', $theme));
+  $templates += drupal_find_theme_templates($existing, '.lol.php', drupal_get_path('engine', 'loltemplate'));
+  $templates += drupal_find_theme_templates($existing, '.lol.php', $path);
+  return $templates;
+}
+
+function loltemplate_extension() {
+  return '.lol.php';
+}
+
+function loltemplate_render_template($file, $variables) {
+  extract($variables, EXTR_SKIP);  // Extract the variables to a local namespace
+  ob_start();                      // Start output buffering
+  include "./$file";               // Include the file
+  $contents = ob_get_contents();   // Get the contents of the buffer
+  ob_end_clean();                  // End buffering and discard
+
+  $contents = loltemplate_parse($contents);
+  ob_start();
+  print eval('?>'. $contents);
+  $contents = ob_get_contents();
+  ob_end_clean();
+
+  return $contents;                // Return the contents
+}

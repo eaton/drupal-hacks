@@ -1,0 +1,38 @@
+<?php
+// $Id$
+
+function node_hider_menu_alter(&$callbacks) {
+  // $callbacks['node/add']['page callback'] = 'node_hider_node_add_page';
+
+  foreach (node_get_types('types', NULL, TRUE) as $type) {
+    if (variable_get('node_hider_' . $type->type, FALSE)) {
+      $type_url_str = str_replace('_', '-', $type->type);
+      $callbacks['node/add/'. $type_url_str]['access callback'] = 'node_hider_node_access';
+    }
+  }
+}
+
+function node_hider_perm() {
+  return array('see all node types');
+}
+
+function node_hider_node_add_page() {
+  $item = menu_get_item();
+  $content = system_admin_menu_block($item);
+  return theme('node_add_list', $content);
+}
+
+function node_hider_form_node_type_form_alter(&$form, &$form_state) {
+  $form['workflow']['node_hider'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Hide this content type from the Create Content page'),
+    '#default_value' => variable_get('node_hider_'. $form['#node_type']->type, FALSE),
+  );
+}
+
+function node_hider_node_access($op, $node, $account = NULL) {
+  if ($op == 'create' && variable_get('node_hider_'. $node, FALSE)) {
+    return FALSE;
+  }
+  return node_access($op, $node, $account);
+}

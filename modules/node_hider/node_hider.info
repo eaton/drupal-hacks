@@ -1,0 +1,4 @@
+; $Id$
+name = Node hider
+description = Hides specific node types from the Add content page, even if users have permission to create the nodes in question.
+core = 6.x

@@ -1,0 +1,114 @@
+<?php
+// $Id$
+
+function url_thumbnail_theme() {
+  return array(
+    'url_thumbnail' => array(
+      'arguments' => array('href' => NULL, 'size' => NULL, $link = TRUE),
+    ),
+    'url_thumbnail_formatter_tiny_thumb' => array(
+      'function' => 'url_thumbnail_formatter',
+      'arguments' => array('element' => NULL),
+    ),
+    'url_thumbnail_formatter_small_thumb' => array(
+      'function' => 'url_thumbnail_formatter',
+      'arguments' => array('element' => NULL),
+    ),
+    'url_thumbnail_formatter_medium_thumb' => array(
+      'function' => 'url_thumbnail_formatter',
+      'arguments' => array('element' => NULL),
+    ),
+    'url_thumbnail_formatter_large_thumb' => array(
+      'function' => 'url_thumbnail_formatter',
+      'arguments' => array('element' => NULL),
+    ),
+  );
+}
+
+function theme_url_thumbnail($href, $size = 's', $link = TRUE) {
+  $image = theme('image', url_thumbnail($href, $size), NULL, NULL, _url_thumbnail_image_attributes($size), FALSE);
+  if ($link) {
+    return l($image, $href, array('html' => TRUE));
+  }
+  else {
+    return $image;
+  }
+}
+
+function url_thumbnail($href, $size = 's', $key = NULL) {
+  $options = array(
+    'key' => empty($key) ? variable_get('url_thumbnail:websnapr_key', 'kIFAuQ2M8zQv') : $key,
+    'size' => $size,
+    'url' => parse_url($href, PHP_URL_HOST) . parse_url($href, PHP_URL_PATH),
+  );
+
+  return "http://images.websnapr.com/?" . http_build_query($options, '', '&');
+}
+
+function _url_thumbnail_sizes() {
+  return array(
+    't' => t('Tiny'),
+    's' => t('Small'),
+    'm' => t('Medium'),
+    'l' => t('Large'),
+  );
+}
+
+function _url_thumbnail_image_attributes($size = 's') {
+  switch(strtolower($size)) {
+    case 't':
+      return array('height' => 70, 'width' => 92, 'class' => 'url-thumbnail url-thumbnail-tiny');
+    case 's':
+      return array('height' => 202, 'width' => 152, 'class' => 'url-thumbnail url-thumbnail-small');
+    case 'm':
+      return array('height' => 400, 'width' => 300, 'class' => 'url-thumbnail url-thumbnail-medium');
+    case 'l':
+      return array('height' => 640, 'width' => 480, 'class' => 'url-thumbnail url-thumbnail-large');
+  }
+}
+
+/**
+ * CCK related formatter functions, yo.
+ */
+function url_thumbnail_formatter_info() {
+  return array(
+    'tiny_thumb' => array(
+      'label' => 'URL thumbnail (tiny)',
+      'field types' => array('link'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'small_thumb' => array(
+      'label' => 'URL thumbnail (small)',
+      'field types' => array('link'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'medium_thumb' => array(
+      'label' => 'URL thumbnail (medium)',
+      'field types' => array('link'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'large_thumb' => array(
+      'label' => 'URL thumbnail (large)',
+      'field types' => array('link'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+  );
+}
+
+function theme_url_thumbnail_formatter($element) {
+  $item = $element['#item'];
+  switch ($item['formatter']) {
+    case 'tiny_thumb':
+      $size = 't';
+      break;
+    case 'medium_thumb':
+      $size = 'm';
+      break;
+    case 'large_thumb':
+      $size = 'l';
+      break;
+    default:
+      $size = 's';
+  }
+  return theme('url_thumbnail', $item['url'], $size);
+}
