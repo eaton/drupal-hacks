@@ -1,0 +1,90 @@
+<?php
+// $Id$
+
+function lj_import($year = '2002') {
+  $cache = cache_get('lj-import-comment-stuff');
+  if ($comment_data = $cache->data) {
+    // PONIES
+  }
+  else {
+    $comment_data = array();
+  }
+  
+  $xml = simplexml_load_file(drupal_get_path('module', 'lj') ."/$year.xml");
+  foreach($xml as $entry) {
+
+    $results = db_query("SELECT c.nid FROM content_type_lj c WHERE c.field_itemid_value = %d", (int)$entry->itemid);
+    if ($found_node = db_fetch_array($results)) {
+      continue;
+    }
+
+    $title = trim((string)$entry->subject);
+    $node = (object)array(
+      'title' => empty($title) ? 'Untitled entry' : strip_tags($title), 
+      'body' => (string)$entry->event,
+      'created' => strtotime((string)$entry->eventtime),
+      'format' => 3,
+      'uid' => 2,
+      'promote' => 1,
+      'type' => 'lj',
+      'comment' => 2,
+    );
+    
+    if ((int)$entry->allowmask) {
+      $node->status = FALSE;
+    }
+
+    $node->field_music[0]['value'] = (string)$entry->current_music;
+    $node->field_mood[0]['value'] = (string)$entry->current_mood;
+    $node->field_itemid[0]['value'] = (string)$entry->itemid;
+
+    $node->body = strip_lj_tags($node->body);
+    $node->teaser = node_teaser($node->body);
+    
+    node_validate($node);
+    node_save($node);
+
+    if (isset($entry->comment)) {
+      foreach ($entry->comment as $comment) {
+        $new_comment = array(
+          'nid' => $node->nid,
+          'comment' => (string)$comment->event,
+          'timestamp' => strtotime((string)$comment->eventtime),
+          'status' => 0,
+          'format' => 1,
+          'name' => (string)$comment->author->name,
+          'mail' => (string)$comment->author->email,
+          'thread' => '01/',
+        );
+        $new_comment['subject'] = trim(truncate_utf8(decode_entities(strip_tags(check_markup($new_comment['comment'], $comment_values['format']))), 29, TRUE));
+        drupal_write_record('comments', $new_comment);
+        $comment_data['ljid'][$new_comment['cid']] = (int)$comment->itemid;
+        $comment_data['cid'][(int)$comment->itemid] = $new_comment['cid'];
+        if ((int)$comment->parent_itemid) $comment_data['ljparent'][$new_comment['cid']] = (int)$comment->parent_itemid;
+      }
+    }
+    _comment_update_node_statistics($node->nid);
+  }
+  cache_set('lj-import-comment-stuff', $comment_data);
+}
+
+
+function strip_lj_tags($text) {
+  $search = '/\<lj user="?([^>^"]*)"?\>/i';
+  $replace = '<a href="http://\1.livejournal.com">\1</a>';
+  $text = preg_replace($search, $replace, $text);
+  
+  $search = '/\<lj-cut\>/i';
+  $replace = '<!--break-->';
+  $text = preg_replace($search, $replace, $text);
+
+  $search = '/img src="?\'?http\:\/\/www.predicate....\/users\/verb\/lj\/([^\'^"^>]*)"?\'?/i';
+  $replace = 'img src="http://jeff.viapositiva.net/sites/jeff.viapositiva.net/files/lj-photos/\1"';
+  $text = preg_replace($search, $replace, $text);
+
+  $search = '/img src="?\'?http\:\/\/www.predicate....\/([^\'^"^>]*)"?\'?/i';
+  $replace = 'img src="http://jeff.viapositiva.net/sites/jeff.viapositiva.net/files/lj-photos/\1"';
+  $text = preg_replace($search, $replace, $text);
+
+  return $text;
+}

@@ -1,0 +1,4 @@
+; $Id$
+name = lj
+description = lj
+core = 6.x
