@@ -1,6 +1,0 @@
-; $Id$
-name = Twitter Eval
-description = Evaluates arbitrary PHP if it appears in a Twitter message. No, I'm not kidding.
-dependencies[] = twitter
-dependencies[] = bad judgement
-core = 6.x

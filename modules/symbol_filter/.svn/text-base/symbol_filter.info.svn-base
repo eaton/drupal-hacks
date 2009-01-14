@@ -1,4 +1,0 @@
-; $Id$
-name = Symbol filter
-description = Replaces certain words with their corresponding UTF8 dingbats. No, this is not useful.
-core = 6.x
