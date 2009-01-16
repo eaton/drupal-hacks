@@ -1,0 +1,8 @@
+; $Id$
+name = Starter theme
+description = This is a starter info file.
+
+stylesheets[all][] = style.css
+
+core = 6.x
+engine = phptemplate
