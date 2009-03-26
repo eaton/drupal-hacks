@@ -1,0 +1,468 @@
+<?php
+
+function ikariam_menu($may_cache = TRUE) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'ikariam',
+      'title' => t('Ikariam'),
+      'access' => user_access('search ikariam'),
+      'callback' => 'ikariam_page',
+    );
+    $items[] = array(
+      'path' => 'ikariam/overview',
+      'title' => t('Overview'),
+      'access' => user_access('search ikariam'),
+      'callback' => 'ikariam_page',
+      'weight' => -10,
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+    );
+    $items[] = array(
+      'path' => 'ikariam/player',
+      'title' => t('Player search'),
+      'access' => user_access('search ikariam'),
+      'callback' => 'ikariam_player_page',
+      'type' => MENU_LOCAL_TASK,
+    );
+    $items[] = array(
+      'path' => 'ikariam/alliance',
+      'title' => t('Alliance search'),
+      'access' => user_access('search ikariam'),
+      'callback' => 'ikariam_alliance_page',
+      'type' => MENU_LOCAL_TASK,
+    );
+    $items[] = array(
+      'path' => 'ikariam/fetch',
+      'title' => t('Fetch data'),
+      'access' => user_access('search ikariam'),
+      'callback' => 'drupal_get_form',
+      'callback arguments' => array('ikariam_spider_page'),
+      'weight' => 10,
+      'type' => MENU_LOCAL_TASK,
+    );
+    $items[] = array(
+      'path' => 'ikariam/image',
+      'title' => t('Map'),
+      'access' => user_access('search ikariam'),
+      'callback' => 'ikariam_world_image',
+      'weight' => 10,
+      'type' => MENU_CALLBACK,
+    );
+  }
+  return $items;
+}
+
+function ikariam_perm() {
+  return array('search ikariam');
+}
+
+function ikariam_page() {
+  $islands = db_result(db_query("SELECT count(1) FROM {ik_island} WHERE iid != -1"));
+  $towns = db_result(db_query("SELECT count(1) FROM {ik_town}"));
+  $output = "<p>We've currently mapped <em>$islands islands</em> and retrieved detailed data on <em>$towns towns</em>. Click ". l('here', 'ikariam/alliance/pred') ." for the glorious predicate alliance.</p>";
+  $output .= drupal_get_form('ikariam_overview_form');
+  return $output;
+}
+
+function ikariam_overview_form() {
+  $form['player'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Find a player',
+  );
+  $form['alliance'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Find an alliance',
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Lookup',
+  );
+  return $form;
+}
+
+function ikariam_overview_form_submit($form_id, $form_values) {
+  if (!empty($form_values['player'])) {
+    return 'ikariam/player/'. urlencode($form_values['player']);
+  }
+  if (!empty($form_values['alliance'])) {
+    return 'ikariam/alliance/'. urlencode($form_values['alliance']);
+  }
+}
+
+function ikariam_world_image($alliance = 'pred') {
+  $x = 100;
+  $y = 100;
+
+  $gd = imagecreatetruecolor(100, 100);
+  $new = imagecreatetruecolor(400, 400);
+
+  $white = imagecolorallocate($gd, 200, 200, 200); 
+  $blue = imagecolorallocate($gd, 100, 100, 255); 
+  $green = imagecolorallocate($gd, 0, 200, 0); 
+  $dk_green = imagecolorallocate($gd, 0, 128, 0); 
+  $pred_color = imagecolorallocate($gd, 0, 255, 0); 
+
+  imagefill($gd, 0, 0, $white);
+
+  $results = db_query("SELECT * FROM {ik_island}");
+  while ($island = db_fetch_array($results)) {
+    if ($island['iid'] == -1) {
+      imagesetpixel($gd, $island['x']-1, $island['y']-1, $blue);
+    }
+    else {
+      if (db_result(db_query("SELECT count(1) FROM {ik_town} WHERE iid = %d", $island['iid']))) {
+        imagesetpixel($gd, $island['x']-1, $island['y']-1, $green);
+      }
+      else {
+        imagesetpixel($gd, $island['x']-1, $island['y']-1, $dk_green);
+      }
+    }
+  }
+  
+  $results = db_query("SELECT DISTINCT x, y FROM {ik_town} WHERE alliance_name = '%s'", $alliance);
+  while ($town = db_fetch_array($results)) {
+    imagesetpixel($gd, $town['x']-1, $town['y']-1, $pred_color);
+  }
+
+  imagecopyresized($new, $gd, 0, 0, 0, 0, 400, 400, 100, 100);
+
+  header('Content-Type: image/png');
+  imagepng($new);
+}
+
+function ikariam_player_page($player_name = NULL) {
+  if (!empty($player_name)) {
+    $player_name = urldecode($player_name);
+    $rows = array();
+    $results = db_query("SELECT * FROM {ik_town} WHERE player_name = '%s' ORDER BY size DESC", $player_name);
+
+    $headers = array('Town', 'Size', 'Location', 'Alliance');
+    while ($town = db_fetch_array($results)) {
+      drupal_set_title('Towns for player '. $town['player_name']);
+      $row = array();
+      $row[] = theme('image', ikariam_resource_icon($town['resource']), $town['resource']) .' '. l($town['town_name'], "http://s3.ikariam.org/index.php?view=island&id={$town['iid']}&selectCity={$town['tid']}" , array('absolute' => TRUE, 'target' => '_new'));
+      $row[] = $town['size'];
+      $row[] = $town['x'] .':'. $town['y'];
+      $row[] = l($town['alliance_name'], "ikariam/alliance/{$town['alliance_name']}");
+      $rows[] = $row;
+    }
+    return theme('table', $headers, $rows);
+  }
+  return 'Durrr, put a player name in the url.';
+}
+
+function ikariam_alliance_page($alliance_name = NULL) {
+  if (!empty($alliance_name)) {
+    $alliance_name = urldecode($alliance_name);
+    $rows = array();
+    $results = db_query("SELECT * FROM {ik_town} WHERE alliance_name = '%s' ORDER BY player_name, size DESC", $alliance_name);
+
+    $headers = array('Player', 'Town', 'Location', 'Size');
+    $output = "<p>Click ". l('here', 'ikariam/image/'. $alliance_name) ." for a map of this alliance's islands.</p>";
+    while ($town = db_fetch_array($results)) {
+      drupal_set_title('Towns allied with '. $town['alliance_name']);
+      $row = array();
+      $row[] = $town['player_name'];
+      $row[] = theme('image', ikariam_resource_icon($town['resource']), $town['resource']) .' '. l($town['town_name'], "http://s3.ikariam.org/index.php?view=island&id={$town['iid']}&selectCity={$town['tid']}" , array('absolute' => TRUE, 'target' => '_new'));
+      $row[] = $town['x'] .':'. $town['y'];
+      $row[] = $town['size'];
+      $rows[] = $row;
+    }
+    $output .= theme('table', $headers, $rows);
+    return $output;
+  }
+  return 'Durrr, put an alliance name in the url.';
+}
+
+function ikariam_spider_page($form_values = NULL) {
+  $form['#redirect'] = FALSE;
+  $form['ikariam'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Ikariam cookie'),
+    '#default_value' => empty($_SESSION['ikariam']['ikariam']) ? '' : $_SESSION['ikariam']['ikariam'],
+    '#description' => t('The </em>ikariam</em> cookie value for your current Ikariam login.'),
+    '#required' => TRUE,
+  );
+  $form['phpsessid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('PHPSESSION cookie'),
+    '#default_value' => empty($_SESSION['ikariam']['phpsess']) ? '' : $_SESSION['ikariam']['phpsess'],
+    '#description' => t('The </em>PHPSESSID</em> cookie value for your current Ikariam login.'),
+    '#required' => TRUE,
+  );
+  $form['x'] = array(
+    '#type' => 'textfield',
+    '#title' => t('X coordinates'),
+    '#default_value' => empty($form_values) ? '' : $form_values['x'],
+    '#required' => TRUE,
+  );
+  $form['y'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Y coordinates'),
+    '#default_value' => empty($form_values) ? '' : $form_values['y'],
+    '#required' => TRUE,
+  );
+  $form['radius'] = array(
+    '#type' => 'value',
+    '#title' => t('Search radius'),
+    '#options' => array('1', '2', '3', '4'),
+    '#default_value' => empty($form_values) ? 1 : $form_values['radius'],
+    '#value' => 2,
+    '#required' => TRUE,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Fetch data'),
+  );
+
+  return $form;
+}
+
+
+function ikariam_spider_page_validate($form_id, $form_values) {
+  if (!is_numeric($form_values['x']) || !is_numeric($form_values['y']) || !is_numeric($form_values['radius'])) {
+    form_set_error(NULL, t('All fields must be filled out, with data that makes sense.'));
+  }
+}
+
+function ikariam_spider_page_submit($form_id, $form_values) {
+  $x = $form_values['x'];
+  $y = $form_values['y'];
+  $radius = $form_values['radius'];
+  $_SESSION['ikariam']['phpsess'] = $form_values['phpsessid'];
+  $_SESSION['ikariam']['ikariam'] = $form_values['ikariam'];
+  $cookie = 'ikariam='. $form_values['ikariam'] .'; PHPSESSID='. $form_values['phpsessid'];
+
+  $islands = ikariam_fetch_rect($cookie, $x - $radius, $y - $radius, ($radius * 2) + 1, ($radius * 2) + 1);
+}
+
+function ikariam_server($world = 'gamma') {
+  $worlds = array(
+    'alpha' => 1,
+    'beta' => 2,
+    'gamma' => 3,
+    'delta' => 4,
+    'epsilon' => 5,
+    'zeta' => 6,
+    'eta' => 7,
+    'theta' => 8,
+    'iota' => 9,
+    'kappa' => 10
+  );
+
+  if (!empty($worlds[strtolower($world)])) {
+    return 's'. $worlds[strtolower($world)] .'.ikariam.org';
+  }
+}
+
+function ikariam_fetch_rect($cookie, $xstart = 1, $ystart = 1, $width = 1, $height = 1) {
+  $islands = array();
+  for ($x = $xstart; $x < $xstart + $width; $x++) {
+    for ($y = $ystart; $y < $ystart + $height; $y++) {
+      if ($i = ikariam_fetch_island($cookie, $x, $y)) {
+        $islands[] = $i;
+      }
+    }
+  }
+  return $islands;
+}
+
+function ikariam_fetch_island($cookie, $x = 1, $y = 1, $flush = FALSE) {
+  if ($island = ikariam_load_island_by_pos($x, $y)) {
+    if ($island['iid'] == -1) {
+      drupal_set_message("($x:$y) is open water.");
+      return FALSE;
+    }
+    ikariam_load_towns($cookie, $island, $flush);
+
+    if ($flush == TRUE) {
+      _ikariam_save_island($island);
+      foreach($island['towns'] as $town) {
+        _ikariam_save_town($town);
+      }
+    }
+  }
+  else {
+    $result = drupal_http_request('http://'. ikariam_server() ."/index.php?view=worldmap_iso&islandX=$x&islandY=$y", array('Cookie' => $cookie), 'GET');
+    $data = $result->data;
+    unset($result);
+
+    $matches = array();
+    $matchstr = "/m\[(\d+)?\]\[(\d+)?\]\=new Array\((\d+)?,([0-9]+)?,(\d+)?,'(\w+)?', '(\d+)?', (\d+)?\);/";
+    preg_match_all($matchstr, $data, $matches);
+
+    unset($data);
+
+    $maxy = 0;
+    $maxx = 0;
+    $miny = 10000;
+    $minx = 10000;
+
+    $found_islands = array();
+    foreach ($matches[0] as $key => $bin) {
+      $i = array(
+        'iid' => $matches[3][$key],
+        'name' => $matches[6][$key],
+        'x' => $matches[1][$key],
+        'y' => $matches[2][$key],
+        'resource' => ikariam_resource_text($matches[4][$key]),
+        'wonder' => ikariam_wonder_text($matches[5][$key]),
+      );
+      _ikariam_save_island($i);
+      if ($i['x'] == $x && $i['y'] == $y) {
+        $island = $i;
+      }
+      $found_islands[$i[x]][$i['y']] = $i;
+      $maxx = max($i['x'], $maxx);
+      $maxy = max($i['y'], $maxy);
+      $minx = min($i['x'], $minx);
+      $miny = min($i['y'], $miny);
+    }
+
+    for ($x = $minx; $x <= $maxx; $x++) {
+      for ($y = $miny; $y <= $maxy; $y++) {
+        if (!isset($found_islands[$x][$y])) {
+          $dummy = array(
+            'iid' => -1,
+            'x' => $x,
+            'y' => $y,
+          );
+          _ikariam_save_island($dummy);
+        }
+      }
+    }
+
+    if (empty($island)) {
+      return FALSE;
+    }
+
+    ikariam_load_towns($cookie, $island, TRUE);
+    foreach($island['towns'] as $town) {
+      _ikariam_save_town($town);
+    }
+  }
+  return $island;
+}
+
+
+function ikariam_load_towns($cookie, &$island, $flush = FALSE) {
+  if ((time() - 172800 > $island['timestamp'])
+      && $towns = ikariam_load_towns_by_island($island['iid'])
+      && $flush == FALSE) {
+    drupal_set_message("Data for {$island['island_name']} ({$island['x']}:{$island['y']}) already cached.");
+    $island['towns'] = $towns;
+  }
+  else {
+    $island['towns'] = array();
+    db_query("DELETE FROM {ik_town} WHERE iid = %d", $island['iid']);
+    $result = drupal_http_request('http://'. ikariam_server() ."/index.php?view=island&id={$island['iid']}", array('Cookie' => $cookie), 'GET');
+    $data = $result->data;
+    unset($result);
+
+    $matches = array();
+    $search_string = '/\<ul id=\"cities"\>(.*?)\s+\<h3\>/s';
+    preg_match($search_string, $data, $matches);
+    $tmp = $matches[0];
+
+    $towns = preg_split('/\<li id=\"cityLocation\d+\"/', $tmp);
+    unset($tmp);
+    unset($maches);
+    unset($data);
+
+    foreach ($towns as $town) {
+      $townmatches = array();
+      preg_match("/cityLocation city level(\d+).*?selectCity\(\d+, (\d+).*?Name: \<\/span\>(.*?)\<\/li\>.*?Player: \<\/span\>(.*?)\t.*?(?:(?:\<a href=\"\?view=allyPage&allyId=(\d+?)&.*?\"\>(.*?)\<\/a\>)|(?:Ally:( )\<\/span\>(-)))/ms", $town, $townmatches);
+      if (!empty($townmatches[2])) {
+        unset($townmatches[0]);
+        $town = array(
+          'tid' => $townmatches[2],
+          'size' => $townmatches[1],
+          'town_name' => $townmatches[3],
+          'player_name' => $townmatches[4],
+          'alliance_name' => $townmatches[6],
+          'iid' => $island['iid'],
+          'island_name' => $island['island_name'],
+          'x' => $island['x'],
+          'y' => $island['y'],
+          'wonder' => $island['wonder'],
+          'resource' => $island['resource'],
+        );
+        _ikariam_save_town($town);
+        $island['towns'][] = $town;
+      }
+    }
+    drupal_set_message("Data for {$island['island_name']} ({$island['x']}:{$island['y']}) retrieved.");
+  }
+}
+
+function ikariam_load_island_by_pos($x, $y) {
+  $sql = "SELECT * FROM {ik_island} WHERE x = %d AND y = %d";
+  $results = db_query($sql, $x, $y);
+  if ($island = db_fetch_array($results)) {
+    return $island;
+  }
+}
+
+function ikariam_load_island_by_id($iid) {
+  $sql = "SELECT * FROM {ik_island} WHERE iid = %d";
+  $results = db_query($sql, $iid);
+  if ($island = db_fetch_array($results)) {
+    return $island;
+  }
+}
+
+function ikariam_load_towns_by_island($iid) {
+  $sql = "SELECT * FROM {ik_town} WHERE iid = %d";
+  $results = db_query($sql, $iid);
+  $towns = array();
+  while ($town = db_fetch_array($results)) {
+    $towns[] = $town;
+  }
+  return $towns;
+}
+
+function _ikariam_save_town($town) {
+  db_query("DELETE FROM {ik_town} WHERE tid = %d", $town['tid']);
+  $sql =  "INSERT INTO {ik_town} (tid, iid, town_name, island_name, player_name, alliance_name, size, x, y, wonder, resource, timestamp) ";
+  $sql .= "VALUES (%d, %d, '%s', '%s', '%s', '%s', %d, %d, %d, '%s', '%s', %d)";
+  db_query($sql, $town['tid'], $town['iid'], $town['town_name'], $town['island_name'], $town['player_name'], $town['alliance_name'], $town['size'],
+          $town['x'], $town['y'], $town['wonder'], $town['resource'], time());
+}
+
+function _ikariam_save_island($island) {
+  db_query("DELETE FROM {ik_island} WHERE x = %d AND y = %d", $island['x'], $island['y']);
+  $sql =  "INSERT INTO {ik_island} (iid, island_name, x, y, resource, wonder, timestamp) ";
+  $sql .= "VALUES (%d, '%s', %d, %d, '%s', '%s', %d)";
+  db_query($sql, $island['iid'], $island['name'], $island['x'], $island['y'], $island['resource'], $island['wonder'], time());
+}
+
+
+function ikariam_resource_text($id = 1) {
+  $goods[1] = 'Wine';
+  $goods[2] = 'Marble';
+  $goods[3] = 'Crystal Glass';
+  $goods[4] = 'Sulphur';
+  return $goods[$id];
+}
+
+function ikariam_resource_icon($text) {
+  $icon = drupal_get_path('module', 'ikariam') .'/';
+  $goods['Wine'] = 'wine.gif';
+  $goods['Marble'] = 'marble.gif';
+  $goods['Crystal Glass'] = 'glass.gif';
+  $goods['Sulphur'] = 'sulphur.gif';
+  return $icon . $goods[$text];
+}
+
+
+function ikariam_wonder_text($id = 1) {
+  $wonders[1] = 'Hephaistos\' Forge';
+  $wonders[2] = 'Temple of Gaia';
+  $wonders[3] = 'Garden of Dionysus';
+  $wonders[4] = 'Temple of Athene';
+  $wonders[5] = 'Temple of Hermes';
+  $wonders[6] = 'Ares\' Stronghold';
+  $wonders[7] = 'Temple of Poseidon';
+  $wonders[8] = 'Colossus';
+  return $wonders[$id];
+}

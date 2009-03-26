@@ -1,0 +1,33 @@
+<?php
+
+function ikariam_install() {
+  db_query("CREATE TABLE {ik_island} (
+    iid int NOT NULL,
+    island_name varchar(255),
+    x int,
+    y int,
+    resource varchar(255),
+    wonder varchar(255),
+    timestamp int
+  ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+
+  db_query("CREATE TABLE {ik_town} (
+    tid int NOT NULL,
+    iid int NOT NULL,
+    town_name varchar(255),
+    player_name varchar(255),
+    alliance_name varchar(255),
+    size int,
+    island_name varchar(255),
+    x int,
+    y int,
+    resource varchar(255),
+    wonder varchar(255),
+    timestamp int
+  ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
+}
+
+function ikariam_uninstall() {
+  db_query("DROP TABLE {ik_island};");
+  db_query("DROP TABLE {ik_town};");
+}

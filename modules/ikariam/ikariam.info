@@ -1,0 +1,4 @@
+; $Id$
+name = Ikariam
+description = Naughty, naughty things.
+package = Predicate
