@@ -1,0 +1,33 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_node_views().
+ */
+function my_feeds_views_api() {
+  return array(
+    'api' => 2,
+  );
+}
+
+function my_feeds_flag_default_flags() {
+  $flags = array();
+  $flags[] = array(
+    'content_type' => 'node',
+    'name' => 'my_feeds',
+    'title' => 'User feeds',
+    'roles' => array('2'),
+    'global' => FALSE,
+    'types' => array('feed'),
+    'flag_short' => 'Subscribe',
+    'flag_long' => 'Add this feed to your news page',
+    'unflag_short' => 'Unsubscribe',
+    'unflag_long' => 'Remove this issue from your news page',
+    'show_on_page' => TRUE,
+    'show_on_teaser' => TRUE,
+    'show_on_form' => FALSE,
+    'status' => TRUE,
+    'locked' => array('name'),
+  );
+  return $flags;
+}

@@ -1,0 +1,8 @@
+; $Id$
+name = My Feeds
+description = Provides user flags and default views for a customizable news feed.
+requirements[] = feedapi
+requirements[] = flag
+requirements[] = views
+requirements[] = views_attach
+core = 6.x
